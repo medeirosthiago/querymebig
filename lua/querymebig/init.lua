@@ -9,8 +9,10 @@ bigqnewquery
 
 ]]
 
-local input_bufnr = nil
+local input_bufnr = vim.api.nvim_get_current_buf()
 local output_bufnr = nil
+
+local M = {}
 
 local get_buffers = function()
 
@@ -21,21 +23,17 @@ local get_buffers = function()
     if match and not open_by_lsp then
       local file = vim.api.nvim_buf_get_name(match)
 
-      if string.match(file, "input.sql") then
-        input_bufnr = tonumber(match)
-      end
-
       if string.match(file, "output.sql") then
         output_bufnr = tonumber(match)
       end
-
     end
   end
+
 end
 
 
 
-local run_bq = function()
+M.run_bq = function()
   get_buffers()
   local query_buf = vim.api.nvim_buf_get_lines(input_bufnr, 0, -1, false)
   local strqbuf = table.concat(query_buf, "\n")
@@ -50,10 +48,13 @@ local run_bq = function()
     on_stdout = function(_, data)
       if data then
         vim.api.nvim_buf_set_lines(output_bufnr, 0, -1, false, data)
+        vim.api.nvim_cmd("echon ''")
       end
     end,
   })
+
+
 end
 
 
-run_bq()
+return M
