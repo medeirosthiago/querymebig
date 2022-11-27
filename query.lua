@@ -1,46 +1,59 @@
 --[[
 
-* read a buffer
-* run a `bq` command with the buffer as query
-* get output and add it to a buffer
+BQ runner
+bigqnewquery
 
-
-Future
-* read a visual part of a buffer
-  * format SQL
-  * add jinja and df templates
-    * identify template type
-    * save templates into some temp file
+* requires two files/buffers
+`input.sql` and `output.sql`
 
 
 ]]
 
-local upbufnr = 105
-local dwbufnr = 50
+local input_bufnr = nil
+local output_bufnr = nil
 
+local get_buffers = function()
 
-local qbuf = vim.api.nvim_buf_get_lines(upbufnr, 0, -1, false)
-local strqbuf = table.concat(qbuf, "\n")
-local cmd = {
-  "bq", "query", "--use_legacy_sql=false", strqbuf
-}
-vim.fn.jobstart(cmd, {
-  stdout_buffered = true,
-  on_stdout = function(_, data)
-    if data then
-      vim.api.nvim_buf_set_lines(dwbufnr, 0, -1, false, data)
+  for _, buffer in ipairs(vim.split(vim.fn.execute ":buffers! t", "\n")) do
+    local match = tonumber(string.match(buffer, "%s*(%d+)"))
+    local open_by_lsp = string.match(buffer, "line 0$")
+
+    if match and not open_by_lsp then
+      local file = vim.api.nvim_buf_get_name(match)
+
+      if string.match(file, "input.sql") then
+        input_bufnr = tonumber(match)
+      end
+
+      if string.match(file, "output.sql") then
+        output_bufnr = tonumber(match)
+      end
+
     end
-  end,
-  on_stderr = function(_, data)
-    if data then
-      vim.api.nvim_buf_set_lines(dwbufnr, 0, -1, false, "deu ruim")
-    end
-  end,
-})
+  end
+end
 
--- runs a job
---[[ vim.fn.jobstart()
 
-get data from stdout
-write it to a temp buffer
-vim.api.nvim_buf_set_lines ]]
+
+local run_bq = function()
+  get_buffers()
+  local query_buf = vim.api.nvim_buf_get_lines(input_bufnr, 0, -1, false)
+  local strqbuf = table.concat(query_buf, "\n")
+  local cmd = {
+    "bq", "query", "--use_legacy_sql=false", strqbuf
+  }
+
+  print("running query...")
+
+  vim.fn.jobstart(cmd, {
+    stdout_buffered = true,
+    on_stdout = function(_, data)
+      if data then
+        vim.api.nvim_buf_set_lines(output_bufnr, 0, -1, false, data)
+      end
+    end,
+  })
+end
+
+
+run_bq()
