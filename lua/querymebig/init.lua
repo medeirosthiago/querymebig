@@ -1,40 +1,27 @@
---[[
-
-BQ runner
-bigqnewquery
-
-* requires two files/buffers
-`input.sql` and `output.sql`
-
-
-]]
-
-local input_bufnr = vim.api.nvim_get_current_buf()
-local output_bufnr = nil
 
 local M = {}
 
-local get_buffers = function()
+local output_tmpfile = nil
 
-  for _, buffer in ipairs(vim.split(vim.fn.execute ":buffers! t", "\n")) do
-    local match = tonumber(string.match(buffer, "%s*(%d+)"))
-    local open_by_lsp = string.match(buffer, "line 0$")
+M.run_bq = function()
+  local input_bufnr = vim.api.nvim_get_current_buf()
 
-    if match and not open_by_lsp then
-      local file = vim.api.nvim_buf_get_name(match)
+  if output_tmpfile == nil then
+    output_tmpfile = os.tmpname()
+  end
 
-      if string.match(file, "output.sql") then
-        output_bufnr = tonumber(match)
+  local buf_has_window_opened = function(buf_number)
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      local buf = vim.api.nvim_win_get_buf(win)
+      if tonumber(buf_number) == tonumber(buf) then
+        return true
       end
     end
   end
 
-end
+  -- TODO: maybe also a condition to not do this everytime
+  local output_bufnr = vim.fn.bufadd(output_tmpfile)
 
-
-
-M.run_bq = function()
-  get_buffers()
   local query_buf = vim.api.nvim_buf_get_lines(input_bufnr, 0, -1, false)
   local strqbuf = table.concat(query_buf, "\n")
   local cmd = {
@@ -47,8 +34,11 @@ M.run_bq = function()
     stdout_buffered = true,
     on_stdout = function(_, data)
       if data then
+        if not buf_has_window_opened(output_bufnr) then
+          vim.api.nvim_exec("belowright sb " .. output_bufnr, false)
+        end
         vim.api.nvim_buf_set_lines(output_bufnr, 0, -1, false, data)
-        vim.api.nvim_cmd("echon ''")
+        vim.api.nvim_exec("echon", false)
       end
     end,
   })
